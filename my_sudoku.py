@@ -7,25 +7,24 @@ from Queue import PriorityQueue
 from Queue import Queue
 
 fileExt="sdk" #The allowable file extension
-puzzle=[] #Initialize the puzzle
+grid=[] #Initialize the grid
 blanks=[] #Initialize blank spots
-
-blankValues={} #Initialize the dictionary for heuristic
-
+blank_values={} #Initialize the dictionary for heuristic
 pathLengths=[] #Hold all the path lengths for metrics
 currentPathLength=0 #Hold the local path length
 constraintChecks=0
 runningTime=0
+q = PriorityQueue()
 
 
-def create_blank_grid():
-	global puzzle
+def CreateBlankGrid():
+	global grid
 	
 	for i in range(9):	
-		puzzle.append([])
+		grid.append([])
 		for j in range(9):
-			puzzle[i].append([])
-			puzzle[i][j]=0
+			grid[i].append([])
+			grid[i][j]=0
 
 def checkFiles(input, output):
 #	print ("in checkFiles")
@@ -58,106 +57,109 @@ def checkFiles(input, output):
 	if not (inputGood and outputGood):
 		sys.exit(2)
 
-def loadPuzzle(puzzleFile):
-	global puzzle
+def LoadGrid(input_file):
+	global grid
 
-#	print ("in loadPuzzle")
-	possibleTokens=[1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
-        file_ptr=open(puzzleFile, 'r')
+#	print ("in LoadGrid")
+	common_domain=[1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
+        file_ptr=open(input_file, 'r')
         lines_array=file_ptr.readlines()
         for row in range (9):
-		lineTokens=lines_array[row].split()
-		if len(lineTokens)!=9:
+		line_tokens=lines_array[row].split()
+		if len(line_tokens)!=9:
 			print "Input grid must be 9*9. Wrong input."
 			sys.exit(1)
 		for col in range(9):
-			token=lineTokens[col].split()[0].strip()
+			token=line_tokens[col].split()[0].strip()
 			if token=='*':
 				token=0 # Change the '-'s to 0s
 			token=int(token)
-			if token not in possibleTokens:
+			if token not in common_domain:
 				print "Invalid token found"
-				print "Token: "+str(token)+" possible: ", possibleTokens
+				print "Token: "+str(token)+" possible_values: ", common_domain
 				sys.exit(1)
-			puzzle[row][col]=int(token)
+			grid[row][col]=int(token)
 	print ""
 
-def getEmptyCells(puzzle):
-#	print ("in getEmptyCells")
-	emptyCells=[]
+def GetEmptyCells(grid):
+#	print ("in GetEmptyCells")
+	empty_cells=[]
 	for i in range(9):
 		for j in range(9):
-			if puzzle[i][j]==0:
-				emptyCells.append((i, j))
-	return emptyCells	
+			if grid[i][j]==0:
+				empty_cells.append((i, j))
+	return empty_cells	
 
-def getPossibleValues(cell):
+# finds the allowable values that a cell can take to keep the sudoku valid
+def GetAllowedValuesOfBlank(cell):
 
-#	print ("in getPossibleValues")
+#	print ("in GetAllowedValuesOfBlank")
         row=cell[0]
         col=cell[1]
         allowed=[]
         for i in range(1,10):
-		if puzzleValid(row, col, i):
+		if IsSudokuValid(row, col, i):
 			allowed.append(i)
         return allowed
 
-def checkRow(row, num ):
+#checks if num is present in grid[row][]
+def new_in_row(row, num ):
         for col in range(9):
-		currentValue=puzzle[row][col]
+		currentValue=grid[row][col]
                 if num==currentValue:
 			return False
 	return True
 
-def checkColumn(col, num ):
+def new_in_column(col, num ):
         for row in range(9):
-                currentValue=puzzle[row][col]
+                currentValue=grid[row][col]
                 if num==currentValue:
 			return False
         return True
 
-def checkBox(row, col, num):
+def new_in_box(row, col, num):
         row=(row/3)*3
         col=(col/3)*3
 
         for r in range(3):
 		for c in range(3):
-			if puzzle[row+r][col+c]==num:
+			if grid[row+r][col+c]==num:
 				return False
         return True
 
-def puzzleValid(row, col ,num):
+#check whether for grid[row][col] = num, is the sudoku still valid
+def IsSudokuValid(row, col ,num): 
         if num==0:
 		return True
         else:
             #Return true if row, column, and box have no violations
-		rowValid=checkRow(row, num)
-                colValid=checkColumn(col, num)
-                boxValid=checkBox(row, col, num)
-                valid=(rowValid & colValid & boxValid)
+		valid_in_row=new_in_row(row, num)
+                valid_in_col=new_in_column(col, num)
+                valid_in_box=new_in_box(row, col, num)
+ 
+                valid_in_grid = (valid_in_row & valid_in_col & valid_in_box)
 
-        return valid
+        return valid_in_grid
 
-def processVariablesFH():
-	global blankValues
+def Getpossible_valuesValuesOfBlanks():
+	global blank_values
 
-#	print ("in processVariablesFH")
-	#print blanks
 	for blank in blanks:
-		possibleValues=getPossibleValues(blank)
-		blankValues[blank]=possibleValues
+		#get a list of possible_values values for each blank cell
+		possible_values_values=GetAllowedValuesOfBlank(blank)
+		blank_values[blank]=possible_values_values
 
 def getRowBlanks(row):
 	cells=[]
 	for col in range(9):
-		if puzzle[row][col]==0:
+		if grid[row][col]==0:
 			cells.append((row, col))
 	return cells
 
 def getColumnBlanks(col):
         cells=[]
         for row in range(9):
-		if puzzle[row][col]==0:
+		if grid[row][col]==0:
 			cells.append((row,col))
         return cells
 
@@ -168,13 +170,13 @@ def getBoxBlanks(row, col):
 
         for r in range(3):
 		for c in range(3):
-			if puzzle[row+r][col+c]==0:
+			if grid[row+r][col+c]==0:
 				cells.append((row+r,col+c))
 	return cells
 
-def getNeighborBlanks(blank):
+def GetBlankNeighbors(blank):
 
-#	print ("in getNeighborBlanks")
+#	print ("in GetBlankNeighbors")
 	row=blank[0]
 	col=blank[1]
 
@@ -186,56 +188,62 @@ def getNeighborBlanks(blank):
 			neighbors.append(blank)
         return neighbors
 
-def getMRV():
-	q = PriorityQueue()
-        for blank in blanks:
-		possible = getPossibleValues(blank)
-		q.put((len(possible), blank))
+def GetMinRemainingValueBlank():
 
-        #Get the first one among (possibly equal)
+	global q
+	
+	#'q' contains ((#possible_values, blank), ..)
+        for blank in blanks:
+		possible_values = GetAllowedValuesOfBlank(blank)
+		q.put((len(possible_values), blank))
+
+def GetMostConstrainingVariable():
+	global q
+	
+        #Get the first one among the blanks with minimum number of possible values
         min_blanks = []
         min_blanks.append(q.get())
         minVal = min_blanks[0][0]
 
         #Build max Degree list
-        while not q.empty(): #Get all equally-prioritized blanks
+        while not q.empty(): #Get all equally-prioritized blanks with least number of possible values
 		next = q.get()
 		if next[0] == minVal:
 	                min_blanks.append(next)
 		else:
 			break
 
-        maxDeg = len(getNeighborBlanks(min_blanks[0][1]))
+        maxDeg = len(GetBlankNeighbors(min_blanks[0][1]))
         maxDegBlank = min_blanks[0]
 
         for blank1 in min_blanks:
-		degree = len(getNeighborBlanks(blank1[1]))
+		degree = len(GetBlankNeighbors(blank1[1]))
 		if degree > maxDeg:
 			maxDegBlank = blank1
 			maxDeg = degree
         return maxDegBlank[1]
 
 def removeInconsistencies(orig, dest):
-	global blankValues
+	global blank_values
 
         removed=False
-        originDomain=copy.deepcopy(blankValues[orig])
+        originDomain=copy.deepcopy(blank_values[orig])
         for val in originDomain:
-		neighborDomain=copy.deepcopy(blankValues[dest])
+		neighborDomain=copy.deepcopy(blank_values[dest])
 		if val in neighborDomain:
 			neighborDomain.remove(val)
 		if len(neighborDomain)==0: #Any value of original domain caused neighbor domain to become 0
-			blankValues[orig].remove(val)
+			blank_values[orig].remove(val)
 			removed=True
         return removed
 
 
-def propagateConstraints():
+def IsSudokuValid():
 
-#	print ("in propagateConstraints")
+#	print ("in IsSudokuValid")
 	queue=Queue() #Build a queue of all arcs in the grid
         for blank in blanks:
-		neighbors=getNeighborBlanks(blank)
+		neighbors=GetBlankNeighbors(blank)
 		for neighbor in neighbors:
 			queue.put((blank, neighbor))
 	#while not queue.empty():
@@ -246,95 +254,94 @@ def propagateConstraints():
 		orig=arc[0]
 		dest=arc[1]
 		if removeInconsistencies(orig, dest): #Removal occurred from orig
-			neighbors=getNeighborBlanks(orig) #Go through neighbors, add an arc from neighbor->orig to detect possibl inconsistencies
+			neighbors=GetBlankNeighbors(orig) #Go through neighbors, add an arc from neighbor->orig to detect possibl inconsistencies
 			neighbors.remove(dest)
 			for neighbor in neighbors:
 				queue.put((neighbor, orig))
 
-def outputSolutionFile():
+def ShowSudoku():
 #	outFile=open(outputFile, 'w')
 	for i in range(9):
 		rowString=""
 		for j in range(9):
-			rowString+=str(puzzle[i][j])+" "
+			rowString+=str(grid[i][j])+" "
 		print (rowString+'\n')
 
-def endAlgorithm():
+def EndAlgorithm():
 	pathLengths.append(currentPathLength) #Append the final path's length
 	#runningTime=time.clock()-runningTime
 	print "Solution found."
             #print ""
-	outputSolutionFile()
+	ShowSudoku()
 	#printMetrics()
 	sys.exit(0)
 
-def constraintProp():
-	global puzzle, blankValues, blanks, pathLengths, currentPathLength
+def PropogateConstraints():
+	global grid, blank_values, blanks, pathLengths, currentPathLength
 
-#	print ("in constraintProp")
+#	print ("in PropogateConstraints")
 
-	#print (blankValues)
+	#print (blank_values)
 	if len(blanks)==0:
-		endAlgorithm()
+		EndAlgorithm()
 
         #Haven't found a solution yet; get coords of the blank
-        blank=getMRV()
+        GetMinRemainingValueBlank()
+	blank=GetMostConstrainingVariable()
         row=blank[0]
         col=blank[1]
 
         #Try numbers in the domain.
-        blankDomain=copy.deepcopy(blankValues[blank])
+        blankDomain=copy.deepcopy(blank_values[blank])
 	#print blankDomain
 #	print ("did it print blankdomain?")
         for num in blankDomain:
-		tempDomain=copy.deepcopy(blankValues) #Copy of current domain before pruning
-		blankValues[blank]=[num]
+		tempDomain=copy.deepcopy(blank_values) #Copy of current domain before pruning
+		blank_values[blank]=[num]
             #Propagate the constraints
-		propagateConstraints()
+		IsSudokuValid()
             #Assign value
-		puzzle[row][col]=num
+		grid[row][col]=num
 		currentPathLength+=1
 		blanks.remove(blank)
 	
-		result=constraintProp()
+		result=PropogateConstraints()
 		if result!=None:
 			return
             #Restore the domain and backtrack
-		blankValues=tempDomain
+		blank_values=tempDomain
 		blanks.append(blank)
-		puzzle[row][col]=0
+		grid[row][col]=0
 		pathLengths.append(currentPathLength) #Add the current path length to the overall list.
 		currentPathLength-=1
 	return None
 
-def solve(puzzleArray):
-#	print ("in solve")
-	processVariablesFH()
-	constraintProp()
-
 def main():
 
-	global fileExt, puzzle, blanks, blankValues, pathLengths, currentPathLength, contraintChecks, outputFile
-	create_blank_grid()
+	global fileExt, grid, blanks, blank_values, pathLengths, currentPathLength, contraintChecks, outputFile
 	
-	if len(sys.argv)!=3:
+	CreateBlankGrid()
+	
+	if len(sys.argv)!=2:
 		print ("Wrong input.")
 		sys.exit(2)
 
-        #Get arguments for input-output
-        inputFile=sys.argv[1]
-        outputFile=sys.argv[2]
+        #Get arguments for input
+        input_file=sys.argv[1]
 
-        #Make sure filenames are ok
-        #checkFiles(inputFile, outputFile)
-        #Load the puzzle file into array
-        loadPuzzle(inputFile)
+        #Load the given grid into blank grid
+        LoadGrid(input_file)
         #Construct the list of blanks
-        blanks=getEmptyCells(puzzle)
+        blanks=GetEmptyCells(grid)
 
-        print "Solving file: "+inputFile
+        print "File is: "+input_file
         print str(len(blanks))+" blanks."
         print ""
-        solve(puzzle)
+	
+	#get the possible_values values that can be taken by each of the blank cells in grid
+	Getpossible_valuesValuesOfBlanks()
+	
+	#based on the grid values, propogate the constraints that the variables must obey
+	PropogateConstraints()
 	
 main()
